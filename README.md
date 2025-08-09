@@ -2,8 +2,6 @@
 
 A modern, real-time calendar dashboard built with Next.js that helps you manage and track your meetings efficiently.
 
-![Katalyst Calendar](public/preview.png)
-
 ## Features
 
 - 🔄 Real-time meeting updates
