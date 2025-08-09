@@ -2,6 +2,10 @@
 
 A modern, real-time calendar dashboard built with Next.js that helps you manage and track your meetings efficiently.
 
+> This app uses direct Google OAuth (NextAuth) at runtime. During development and testing in Cursor, we also used Composio MCP for Google Calendar integration. See the MCP section below to enable it in your editor.
+
+
+
 ## Features
 
 - 🔄 Real-time meeting updates
@@ -15,7 +19,7 @@ A modern, real-time calendar dashboard built with Next.js that helps you manage 
 
 ## Tech Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/)
+- **Framework**: [Next.js 15](https://nextjs.org/)
 - **Authentication**: [NextAuth.js](https://next-auth.js.org/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **UI Components**: [Radix UI](https://www.radix-ui.com/)
@@ -23,7 +27,7 @@ A modern, real-time calendar dashboard built with Next.js that helps you manage 
 - **Fonts**: [Satoshi](https://www.fontshare.com/fonts/satoshi)
 - **Type Safety**: TypeScript
 
-## Getting Started
+## Getting Started (Windows 11)
 
 ### Prerequisites
 
@@ -46,10 +50,10 @@ npm install
 yarn install
 ```
 
-3. Create a `.env.local` file in the root directory:
+3. Create a `.env.local` file in the project root:
 ```env
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-nextauth-secret
+NEXTAUTH_SECRET=your-32-char-random-secret
 
 # OAuth Configuration
 GOOGLE_CLIENT_ID=your-client-id
@@ -64,6 +68,28 @@ yarn dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Optional: Enable Composio MCP in Cursor
+
+We used Composio MCP servers in Cursor to assist with Google Calendar during development. You can add the following to your MCP configuration in Cursor:
+
+```json
+{
+  "mcpServers": {
+    "browsermcp": {
+      "command": "npx",
+      "args": [
+        "@browsermcp/mcp@latest"
+      ]
+    },
+    "googlecalendar": {
+      "url": "https://mcp.composio.dev/composio/server/<YOUR_SERVER_ID>/mcp?include_composio_helper_actions=true&agent=cursor"
+    }
+  }
+}
+```
+
+Replace `<YOUR_SERVER_ID>` with your Composio server id. This is optional and used only for agentic/dev tooling inside Cursor; the web app itself uses standard Google OAuth.
 
 ## Project Structure
 

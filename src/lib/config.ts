@@ -9,8 +9,6 @@ try {
   console.warn('Environment validation failed, using fallback values:', error)
   // Fallback configuration for development
   validatedEnv = {
-    COMPOSIO_API_KEY: process.env.COMPOSIO_API_KEY || '',
-    COMPOSIO_AUTH_CONFIG_ID: process.env.COMPOSIO_AUTH_CONFIG_ID || '',
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || undefined,
@@ -26,10 +24,6 @@ try {
 }
 
 export const config = {
-  composio: {
-    apiKey: validatedEnv.COMPOSIO_API_KEY,
-    authConfigId: validatedEnv.COMPOSIO_AUTH_CONFIG_ID,
-  },
   google: {
     clientId: validatedEnv.GOOGLE_CLIENT_ID,
     clientSecret: validatedEnv.GOOGLE_CLIENT_SECRET,

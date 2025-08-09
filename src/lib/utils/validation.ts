@@ -2,8 +2,6 @@ import { z } from "zod"
 
 // Environment validation schema
 export const envSchema = z.object({
-  COMPOSIO_API_KEY: z.string().min(1),
-  COMPOSIO_AUTH_CONFIG_ID: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   // Optional API key fallback for public calendars

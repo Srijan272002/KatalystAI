@@ -42,12 +42,13 @@ export async function POST(request: Request) {
     const connectionRequest = await initiateCalendarConnection(userId, redirectUrl)
     
     const duration = Date.now() - startTime
-    logger.info("Calendar connection initiated", { redirectUrl: connectionRequest.redirectUrl }, userId)
+    logger.info("Calendar connection initiated", { authUrl: connectionRequest.authUrl }, userId)
     logger.apiRequest("POST", "/api/calendar/connect", userId, duration)
     
     return NextResponse.json({
-      redirectUrl: connectionRequest.redirectUrl,
-      connectionUrl: connectionRequest.redirectUrl, // Support both property names
+      redirectUrl: connectionRequest.authUrl,
+      connectionUrl: connectionRequest.authUrl, // Support both property names
+      needsAuth: connectionRequest.needsAuth
     })
   } catch (error) {
     const duration = Date.now() - startTime

@@ -25,6 +25,12 @@ export function calculateDuration(startTime: string, endTime: string): number {
 }
 
 export function formatDuration(minutes: number): string {
+  // Treat 24h blocks as all-day events
+  if (minutes >= 1440) {
+    const days = Math.round(minutes / 1440)
+    return days === 1 ? 'All day' : `${days} days`
+  }
+
   if (minutes < 60) {
     return `${minutes}m`
   }

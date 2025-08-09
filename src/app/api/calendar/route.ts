@@ -27,8 +27,15 @@ export async function GET(request: Request) {
     
     logger.apiRequest("GET", "/api/calendar", userId)
 
-    // Pass access token for graceful Google API fallback if Composio fails
+    // Pass access token with better validation
     const accessToken = (session as any)?.accessToken as string | undefined
+    
+    // Log token availability for debugging
+    console.log(`🔑 Access token available: ${!!accessToken}, User: ${userId}`)
+    
+    if (!accessToken) {
+      logger.warn("No access token in session, user may need to re-authenticate", { userId })
+    }
 
     const calendarData = await getCalendarData(userId, forceRefresh, accessToken)
     

@@ -11,7 +11,9 @@ export interface AuthSession {
   expires: string;
 }
 
-export interface ComposioAuthConfig {
-  apiKey: string;
-  authConfigId: string;
+export interface GoogleCalendarConfig {
+  clientId: string;
+  clientSecret: string;
+  apiKey?: string;
+  calendarId?: string;
 }

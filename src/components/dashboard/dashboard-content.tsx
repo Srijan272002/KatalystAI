@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { MeetingList } from "@/components/meeting/meeting-list"
 import { CalendarData } from "@/types/meeting"
 import { generateMockAISummary } from "@/lib/utils/mock-data"
+import { useToast } from "@/components/ui/toast"
 import { RefreshCw, LogOut, Calendar } from "lucide-react"
 import { signOut } from "next-auth/react"
 
@@ -14,13 +15,17 @@ interface DashboardContentProps {
 }
 
 export function DashboardContent({ user }: DashboardContentProps) {
+  const { addToast } = useToast()
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connectedToCalendar, setConnectedToCalendar] = useState(false)
+  const [retryAttempt, setRetryAttempt] = useState(0)
 
-  const fetchCalendarData = async (showLoading = true, forceRefresh = false) => {
+  const fetchCalendarData = async (showLoading = true, forceRefresh = false, retryCount = 0) => {
+    const maxRetries = 3
+    
     try {
       if (showLoading) setLoading(true)
       if (!showLoading) setRefreshing(true)
@@ -28,6 +33,8 @@ export function DashboardContent({ user }: DashboardContentProps) {
 
       // Add cache-busting parameter for force refresh
       const refreshParam = forceRefresh ? '?refresh=true' : ''
+      console.log(`📡 Fetching calendar data (attempt ${retryCount + 1}/${maxRetries + 1})...`)
+      
       const response = await fetch(`/api/calendar${refreshParam}`, {
         headers: {
           'Cache-Control': forceRefresh ? 'no-cache' : 'default',
@@ -45,6 +52,20 @@ export function DashboardContent({ user }: DashboardContentProps) {
       // Check connection status from API response
       setConnectedToCalendar(data.hasConnection !== false)
       
+      // If we got empty data and it's the initial load (not a manual refresh), retry after a short delay
+      if (!forceRefresh && retryCount < maxRetries && data.hasConnection === false && (data.upcomingMeetings?.length || 0) === 0 && (data.pastMeetings?.length || 0) === 0) {
+        console.log(`🔄 Got empty data on attempt ${retryCount + 1}, retrying in 2 seconds...`)
+        setRetryAttempt(retryCount + 1)
+        addToast(`Retrying to load calendar data (${retryCount + 1}/${maxRetries})...`, 'info', 2000)
+        setTimeout(() => {
+          fetchCalendarData(false, true, retryCount + 1) // Force refresh on retry
+        }, 2000)
+        return
+      }
+      
+      // Reset retry count on successful load
+      setRetryAttempt(0)
+      
       // Log successful fetch for debugging
       console.log('Calendar data fetched:', {
         upcoming: data.upcomingMeetings?.length || 0,
@@ -52,17 +73,44 @@ export function DashboardContent({ user }: DashboardContentProps) {
         lastUpdated: data.lastUpdated
       })
       
+      // Show success toast for manual refreshes
+      if (forceRefresh) {
+        const totalMeetings = (data.upcomingMeetings?.length || 0) + (data.pastMeetings?.length || 0)
+        addToast(`Calendar refreshed! Found ${totalMeetings} meetings`, 'success')
+      }
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred"
-      setError(errorMessage)
-      
       console.error('Calendar fetch error:', err)
       
-      // If not connected, try to initiate connection
-      if (errorMessage.includes("No calendar connection") || 
-          errorMessage.includes("not active") ||
-          errorMessage.includes("Please connect")) {
-        setConnectedToCalendar(false)
+      // Handle token-related errors with retry logic
+      if (errorMessage.includes("token") || errorMessage.includes("unauthorized") || errorMessage.includes("401")) {
+        console.log(`🔐 Token issue detected, retrying...`)
+        if (retryCount < maxRetries) {
+          setRetryAttempt(retryCount + 1)
+          addToast(`Authentication issue, retrying (${retryCount + 1}/${maxRetries})...`, 'warning', 3000)
+          setTimeout(() => {
+            fetchCalendarData(showLoading, true, retryCount + 1) // Force refresh on token error
+          }, 3000) // Wait longer for token issues
+          return
+        } else {
+          setError("Authentication expired. Please sign out and sign in again.")
+          addToast('Authentication expired. Please sign in again.', 'error')
+        }
+      } else {
+        setError(errorMessage)
+        
+        // Show error toast for manual refreshes
+        if (forceRefresh) {
+          addToast('Failed to refresh calendar. Please try again.', 'error')
+        }
+        
+        // If not connected, try to initiate connection
+        if (errorMessage.includes("No calendar connection") || 
+            errorMessage.includes("not active") ||
+            errorMessage.includes("Please connect")) {
+          setConnectedToCalendar(false)
+        }
       }
     } finally {
       setLoading(false)
@@ -75,30 +123,10 @@ export function DashboardContent({ user }: DashboardContentProps) {
       setLoading(true)
       setError(null)
       
-      const response = await fetch("/api/calendar/connect", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          redirectUrl: window.location.origin + "/dashboard",
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to initiate calendar connection")
-      }
-
-      const data = await response.json()
-      
-      if (data.redirectUrl || data.connectionUrl) {
-        const redirectUrl = data.redirectUrl || data.connectionUrl
-        console.log('Redirecting to Composio auth URL:', redirectUrl)
-        window.location.href = redirectUrl
-      } else {
-        throw new Error("No redirect URL received from server")
-      }
+      // Since we use NextAuth with Google OAuth, we just need to redirect to sign in
+      // The Google Calendar connection is automatic with the proper scopes
+      const callbackUrl = window.location.origin + "/dashboard"
+      window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`
     } catch (err) {
       console.error('Calendar connection error:', err)
       const errorMessage = err instanceof Error ? err.message : "Failed to connect to calendar"
@@ -138,7 +166,11 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
   }
 
   useEffect(() => {
-    fetchCalendarData()
+    // Add a small delay for initial load to ensure session is fully established
+    const timer = setTimeout(() => {
+      console.log('🚀 Starting initial calendar data fetch...')
+      fetchCalendarData()
+    }, 1000) // 1 second delay
     
     // Near real-time polling: every 60 seconds
     const interval = setInterval(() => {
@@ -147,13 +179,38 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
       }
     }, 60 * 1000)
 
-    return () => clearInterval(interval)
+    return () => {
+      clearTimeout(timer)
+      clearInterval(interval)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manual refresh handler
   const handleManualRefresh = () => {
+    console.log('🔄 Manual refresh triggered from dashboard content')
+    addToast('Refreshing calendar...', 'info', 1500)
     fetchCalendarData(false, true) // Force refresh without loading state
   }
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + R for refresh
+      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+        event.preventDefault()
+        handleManualRefresh()
+      }
+      
+      // F5 for refresh
+      if (event.key === 'F5') {
+        event.preventDefault()
+        handleManualRefresh()
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Pull-to-refresh (mobile)
   useEffect(() => {
@@ -243,7 +300,7 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
               disabled={refreshing}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
+              <span className="text-black">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
             </Button>
             <span className="text-sm text-muted-foreground">
               Welcome, {user.name || user.email}
@@ -271,6 +328,20 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
           </div>
         )}
 
+        {retryAttempt > 0 && !error && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+              <p className="text-blue-800">
+                Loading calendar data... (Attempt {retryAttempt}/3)
+              </p>
+            </div>
+            <p className="text-sm text-blue-600 mt-1">
+              Please wait while we fetch your meetings.
+            </p>
+          </div>
+        )}
+
         {!loading && calendarData && calendarData.upcomingMeetings.length === 0 && calendarData.pastMeetings.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -284,7 +355,7 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
               disabled={refreshing}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh Calendar
+              <span className="text-black">Refresh Calendar</span>
             </Button>
           </div>
         ) : (

@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Clock, Users, Brain } from "lucide-react"
+import { Clock, Users, Brain, RefreshCw } from "lucide-react"
 import Loader from "@/components/ui/loader"
+import { useToast } from "@/components/ui/toast"
 import { signOut } from "next-auth/react"
 import { User } from "next-auth"
 import { Meeting } from "@/types/meeting"
@@ -16,22 +17,35 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ user }: DashboardViewProps) {
+  const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming")
   const [loadingSummary, setLoadingSummary] = useState<string | null>(null)
   const [summaries, setSummaries] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [meetings, setMeetings] = useState<{ upcomingMeetings: Meeting[], pastMeetings: Meeting[] }>({
     upcomingMeetings: [],
     pastMeetings: []
   })
+  const [lastUpdated, setLastUpdated] = useState<string>('')
 
-  const fetchCalendarData = async (showLoading = true) => {
+  const fetchCalendarData = async (showLoading = true, forceRefresh = false) => {
     try {
-      if (showLoading) setLoading(true)
+      if (showLoading) {
+        setLoading(true)
+      } else {
+        setRefreshing(true)
+      }
       setError(null)
 
-      const response = await fetch('/api/calendar')
+      // Add cache-busting parameter for force refresh
+      const refreshParam = forceRefresh ? '?refresh=true' : ''
+      const response = await fetch(`/api/calendar${refreshParam}`, {
+        headers: {
+          'Cache-Control': forceRefresh ? 'no-cache' : 'default',
+        },
+      })
       const data = await response.json()
 
       if (!response.ok) {
@@ -42,24 +56,73 @@ export function DashboardView({ user }: DashboardViewProps) {
         upcomingMeetings: data.upcomingMeetings || [],
         pastMeetings: data.pastMeetings || []
       })
+      setLastUpdated(data.lastUpdated || new Date().toISOString())
+      
+      console.log('✅ Calendar data refreshed:', {
+        upcoming: data.upcomingMeetings?.length || 0,
+        past: data.pastMeetings?.length || 0,
+        timestamp: new Date().toLocaleString()
+      })
+      
+      // Show success toast for manual refreshes
+      if (forceRefresh) {
+        addToast(`Calendar refreshed! Found ${(data.upcomingMeetings?.length || 0) + (data.pastMeetings?.length || 0)} meetings`, 'success')
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred"
       setError(errorMessage)
+      console.error('❌ Calendar refresh failed:', err)
+      
+      // Show error toast for manual refreshes
+      if (forceRefresh) {
+        addToast('Failed to refresh calendar. Please try again.', 'error')
+      }
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
+
+  // Manual refresh handler
+  const handleManualRefresh = () => {
+    console.log('🔄 Manual refresh triggered')
+    fetchCalendarData(false, true) // Force refresh without loading state
+  }
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + R for refresh
+      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+        event.preventDefault()
+        handleManualRefresh()
+        addToast('Refreshing calendar...', 'info', 1500)
+      }
+      
+      // F5 for refresh
+      if (event.key === 'F5') {
+        event.preventDefault()
+        handleManualRefresh()
+        addToast('Refreshing calendar...', 'info', 1500)
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [addToast])
 
   useEffect(() => {
     fetchCalendarData()
     
     // Real-time updates every minute
     const interval = setInterval(() => {
-      fetchCalendarData(false)
+      if (!loading && !refreshing) {
+        fetchCalendarData(false, false) // Auto refresh without force
+      }
     }, 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [loading, refreshing])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -102,10 +165,21 @@ export function DashboardView({ user }: DashboardViewProps) {
         <div className="px-4 py-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">Calendar Dashboard</h1>
-            <Button 
-              onClick={() => signOut({ callbackUrl: '/' })}
-              className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
-            >
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualRefresh}
+                disabled={refreshing || loading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="text-black">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </Button>
+              <Button 
+                onClick={() => signOut({ callbackUrl: '/' })}
+                className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
+              >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
@@ -113,6 +187,7 @@ export function DashboardView({ user }: DashboardViewProps) {
               </svg>
               Logout
             </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -153,7 +228,7 @@ export function DashboardView({ user }: DashboardViewProps) {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => fetchCalendarData()} 
+              onClick={() => fetchCalendarData(true, true)} 
               className="mt-2"
             >
               Try Again
@@ -252,9 +327,31 @@ export function DashboardView({ user }: DashboardViewProps) {
           {currentMeetings.length === 0 && !loading && (
             <div className="text-center py-12">
               <p className="text-gray-500">No {activeTab} meetings found.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualRefresh}
+                disabled={refreshing}
+                className="mt-4"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="text-black">Refresh Calendar</span>
+              </Button>
             </div>
           )}
         </div>
+        
+        {/* Last Updated Timestamp */}
+        {lastUpdated && (
+          <div className="mt-8 text-center text-sm text-gray-500">
+            Last updated: {new Date(lastUpdated).toLocaleString()}
+            {refreshing && (
+              <span className="ml-2 text-indigo-600">
+                • Refreshing...
+              </span>
+            )}
+          </div>
+        )}
       </main>
     </div>
   )
