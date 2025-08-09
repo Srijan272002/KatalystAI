@@ -32,7 +32,7 @@ A modern, real-time calendar integration built with Next.js 14 and Composio MCP.
 
 ## Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
+Create a `.env` file in the root directory with the following variables:
 
 ```bash
 # Authentication
