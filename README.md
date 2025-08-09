@@ -2,7 +2,7 @@
 
 A modern, real-time calendar dashboard built with Next.js that helps you manage and track your meetings efficiently.
 
-> This app uses direct Google OAuth (NextAuth) at runtime. During development and testing in Cursor, we also used Composio MCP for Google Calendar integration. See the MCP section below to enable it in your editor.
+> This app uses Composio MCP for Google Calendar integration. See the MCP section below to enable it in your editor.
 
 
 
