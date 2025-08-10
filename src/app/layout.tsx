@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { AuthProvider } from "@/components/providers/session-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
 import "./globals.css";
 import "../styles/fonts.css";
@@ -22,11 +21,9 @@ export default function RootLayout({
         className="min-h-screen bg-background font-satoshi antialiased"
       >
         <ErrorBoundary>
-          <AuthProvider>
-            <div className="relative flex min-h-screen flex-col">
-              <div className="flex-1">{children}</div>
-            </div>
-          </AuthProvider>
+          <div className="relative flex min-h-screen flex-col">
+            <div className="flex-1">{children}</div>
+          </div>
         </ErrorBoundary>
       </body>
     </html>

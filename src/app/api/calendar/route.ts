@@ -1,7 +1,6 @@
-import { auth } from "@/lib/auth"
-import { getCalendarData } from "@/lib/api/calendar"
+import { getCurrentUserSimple } from "@/lib/auth/server-auth"
+import { getCalendarData } from "@/lib/supabase/calendar"
 import { logger } from "@/lib/utils/logger"
-import { calendarDataSchema } from "@/lib/utils/validation"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -9,17 +8,24 @@ export async function GET(request: Request) {
   let userId: string | undefined
 
   try {
-    const session = await auth()
+    // Get current user from Supabase auth
+    const user = await getCurrentUserSimple()
 
-    if (!session?.user?.email) {
-      logger.securityEvent("Unauthorized calendar access attempt")
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+    if (!user?.email) {
+      logger.warn("Unauthorized calendar access attempt", {
+        userAgent: request.headers.get('user-agent'),
+        referer: request.headers.get('referer'),
+        timestamp: new Date().toISOString()
+      })
+      
+      return NextResponse.json({
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED',
+        message: 'Please sign in to access your calendar'
+      }, { status: 401 })
     }
 
-    userId = session.user.email
+    userId = user.email
     
     // Check for force refresh parameter
     const { searchParams } = new URL(request.url)
@@ -27,20 +33,8 @@ export async function GET(request: Request) {
     
     logger.apiRequest("GET", "/api/calendar", userId)
 
-    // Pass access token with better validation
-    const accessToken = (session as any)?.accessToken as string | undefined
-    
-    // Log token availability for debugging
-    console.log(`🔑 Access token available: ${!!accessToken}, User: ${userId}`)
-    
-    if (!accessToken) {
-      logger.warn("No access token in session, user may need to re-authenticate", { userId })
-    }
-
-    const calendarData = await getCalendarData(userId, forceRefresh, accessToken)
-    
-    // Validate response data
-    const validatedData = calendarDataSchema.parse(calendarData)
+    // Get calendar data using Supabase service
+    const calendarData = await getCalendarData(user.id, forceRefresh)
     
     const duration = Date.now() - startTime
     logger.apiRequest("GET", "/api/calendar", userId, duration)
@@ -55,15 +49,30 @@ export async function GET(request: Request) {
       'ETag': `"${userId}-${Date.now()}"` // User-specific ETag
     }
     
-    return NextResponse.json(validatedData, { headers })
+    return NextResponse.json(calendarData, { headers })
   } catch (error) {
     const duration = Date.now() - startTime
     logger.apiError("GET", "/api/calendar", error as Error, userId, duration)
     
+    // Handle specific authentication errors
+    if (error instanceof Error && error.message.includes('Auth session missing')) {
+      logger.error("Session missing in calendar API", error, userId)
+      
+      return NextResponse.json({
+        error: 'Session expired',
+        code: 'SESSION_EXPIRED',
+        message: 'Your session has expired. Please refresh the page and try again.'
+      }, { status: 401 })
+    }
+    
     const errorMessage = error instanceof Error ? error.message : "Internal server error"
     
     return NextResponse.json(
-      { error: errorMessage },
+      { 
+        error: errorMessage,
+        code: "INTERNAL_ERROR",
+        message: "An unexpected error occurred while fetching calendar data"
+      },
       { status: 500 }
     )
   }

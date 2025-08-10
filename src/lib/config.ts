@@ -17,10 +17,7 @@ try {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
     NODE_ENV: process.env.NODE_ENV as 'development' | 'production' | 'test' | undefined,
-    NEXTAUTH_DEBUG: process.env.NEXTAUTH_DEBUG,
   }
 }
 
@@ -28,18 +25,14 @@ export const config = {
   google: {
     clientId: validatedEnv.GOOGLE_CLIENT_ID,
     clientSecret: validatedEnv.GOOGLE_CLIENT_SECRET,
-    apiKey: (validatedEnv as any).GOOGLE_API_KEY as string | undefined,
-    calendarId: (validatedEnv as any).GOOGLE_CALENDAR_ID as string | undefined,
-    enableApiKeyFallback: ((validatedEnv as any).ENABLE_API_KEY_FALLBACK || '').toLowerCase() === 'true',
+    apiKey: validatedEnv.GOOGLE_API_KEY,
+    calendarId: validatedEnv.GOOGLE_CALENDAR_ID,
+    enableApiKeyFallback: (validatedEnv.ENABLE_API_KEY_FALLBACK || '').toLowerCase() === 'true',
   },
   supabase: {
     url: validatedEnv.NEXT_PUBLIC_SUPABASE_URL,
     anonKey: validatedEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceRoleKey: validatedEnv.SUPABASE_SERVICE_ROLE_KEY,
-  },
-  nextAuth: {
-    url: validatedEnv.NEXTAUTH_URL || 'http://localhost:3000',
-    secret: validatedEnv.NEXTAUTH_SECRET,
   },
   app: {
     isDevelopment: validatedEnv.NODE_ENV === 'development',

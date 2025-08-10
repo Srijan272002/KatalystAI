@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,29 +8,44 @@ import { Separator } from "@/components/ui/separator"
 import { Clock, Users, Brain, RefreshCw } from "lucide-react"
 import Loader from "@/components/ui/loader"
 import { useToast } from "@/components/ui/toast"
-import { signOut } from "next-auth/react"
-import { User } from "next-auth"
-import { Meeting } from "@/types/meeting"
+import { MeetingWithAttendees } from "@/lib/supabase/types"
+import { useSimpleAuth, handleOAuthCallback } from "@/lib/auth/simple-auth"
+import { DashboardNavbar } from "@/components/dashboard/dashboard-navbar"
+import { MeetingCard } from "@/components/meeting/meeting-card"
 
 interface DashboardViewProps {
-  user: User
+  searchParams?: { code?: string; error?: string }
 }
 
-export function DashboardView({ user }: DashboardViewProps) {
+export function DashboardView({ searchParams }: DashboardViewProps) {
+  console.log('🔍 DashboardView: Component rendering')
+  
+  // All React hooks must be called at the top level, before any conditional returns
   const { addToast } = useToast()
+  const { user, isAuthenticated, loading: authLoading } = useSimpleAuth()
+  
+  // State hooks
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming")
   const [loadingSummary, setLoadingSummary] = useState<string | null>(null)
   const [summaries, setSummaries] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [meetings, setMeetings] = useState<{ upcomingMeetings: Meeting[], pastMeetings: Meeting[] }>({
+  const [meetings, setMeetings] = useState<{ upcomingMeetings: MeetingWithAttendees[], pastMeetings: MeetingWithAttendees[] }>({
     upcomingMeetings: [],
     pastMeetings: []
   })
   const [lastUpdated, setLastUpdated] = useState<string>('')
 
-  const fetchCalendarData = async (showLoading = true, forceRefresh = false) => {
+  // Callback hooks
+  const fetchCalendarData = useCallback(async (showLoading = true, forceRefresh = false) => {
+    // Don't fetch if user is not authenticated
+    if (!isAuthenticated) {
+      console.log('⚠️ User not authenticated, skipping calendar fetch')
+      setLoading(false)
+      return
+    }
+
     try {
       if (showLoading) {
         setLoading(true)
@@ -49,7 +64,21 @@ export function DashboardView({ user }: DashboardViewProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch calendar data")
+        // Handle specific error codes
+        if (response.status === 401) {
+          if (data.code === 'SESSION_EXPIRED') {
+            addToast('Session expired. Please refresh the page.', 'error')
+            setTimeout(() => {
+              window.location.href = '/'
+            }, 2000)
+            return
+          } else if (data.code === 'AUTH_REQUIRED') {
+            addToast('Please sign in to continue.', 'error')
+            window.location.href = '/'
+            return
+          }
+        }
+        throw new Error(data.message || data.error || "Failed to fetch calendar data")
       }
 
       setMeetings({
@@ -81,275 +110,185 @@ export function DashboardView({ user }: DashboardViewProps) {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [addToast, isAuthenticated])
 
-  // Manual refresh handler
-  const handleManualRefresh = () => {
+  const handleManualRefresh = useCallback(() => {
+    if (!isAuthenticated) {
+      addToast('Please sign in to refresh your calendar.', 'error')
+      return
+    }
     console.log('🔄 Manual refresh triggered')
-    fetchCalendarData(false, true) // Force refresh without loading state
-  }
-  
-  // Keyboard shortcuts
+    fetchCalendarData(false, true)
+  }, [fetchCalendarData, isAuthenticated, addToast])
+
+  const handleAISummary = useCallback(async (meetingId: string) => {
+    setLoadingSummary(meetingId)
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Generate mock summary
+      const meeting = [...meetings.upcomingMeetings, ...meetings.pastMeetings].find(m => m.id === meetingId)
+      if (meeting) {
+        const mockSummary = `AI Summary for "${meeting.title}": This meeting focused on key deliverables and team collaboration. Important decisions were made regarding project timelines and resource allocation.`
+        setSummaries(prev => ({ ...prev, [meetingId]: mockSummary }))
+        addToast('AI summary generated successfully!', 'success')
+      }
+    } catch (error) {
+      console.error('Error generating AI summary:', error)
+      addToast('Failed to generate AI summary. Please try again.', 'error')
+    } finally {
+      setLoadingSummary(null)
+    }
+  }, [meetings, addToast])
+
+  // Effect hooks
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Ctrl/Cmd + R for refresh
-      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
-        event.preventDefault()
-        handleManualRefresh()
-        addToast('Refreshing calendar...', 'info', 1500)
+    const handleOAuth = async () => {
+      if (searchParams?.code) {
+        console.log('🔍 DashboardView: Handling OAuth callback...')
+        try {
+          const result = await handleOAuthCallback()
+          if (result.error) {
+            console.error('OAuth callback failed:', result.error)
+            addToast('Authentication failed. Please try again.', 'error')
+          } else {
+            console.log('OAuth callback successful')
+            addToast('Successfully authenticated!', 'success')
+          }
+        } catch (error) {
+          console.error('Error handling OAuth callback:', error)
+          addToast('Authentication error. Please try again.', 'error')
+        }
       }
       
-      // F5 for refresh
-      if (event.key === 'F5') {
-        event.preventDefault()
-        handleManualRefresh()
-        addToast('Refreshing calendar...', 'info', 1500)
+      if (searchParams?.error) {
+        console.error('OAuth error:', searchParams.error)
+        addToast('Authentication error. Please try again.', 'error')
       }
     }
-    
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [addToast])
 
+    handleOAuth()
+  }, [searchParams, addToast])
+
+  // Fetch data on mount
   useEffect(() => {
     fetchCalendarData()
-    
-    // Real-time updates every minute
-    const interval = setInterval(() => {
-      if (!loading && !refreshing) {
-        fetchCalendarData(false, false) // Auto refresh without force
-      }
-    }, 60 * 1000)
+  }, [fetchCalendarData])
 
-    return () => clearInterval(interval)
-  }, [loading, refreshing])
+  console.log('🔍 DashboardView: Auth state:', {
+    user: user?.email,
+    isAuthenticated,
+    authLoading
+  })
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+  // Simple fallback UI while loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
-  const generateAISummary = async (meetingId: string, meetingTitle: string) => {
-    setLoadingSummary(meetingId)
-
-    // Mock AI summary generation - in real app, this would call the AI service
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const summary = `AI summary generated for ${meetingTitle}. Key points and action items have been identified from this meeting.`
-    
-    setSummaries((prev) => ({
-      ...prev,
-      [meetingId]: summary
-    }))
-    setLoadingSummary(null)
+  // Fallback if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Please sign in to access the dashboard.</p>
+          <Button 
+            onClick={() => window.location.href = '/'}
+            className="mt-4"
+          >
+            Go to Home
+          </Button>
+        </div>
+      </div>
+    )
   }
 
+  const handleTabChange = (tab: "upcoming" | "past") => {
+    setActiveTab(tab)
+  }
+
+  // Get current meetings based on active tab
   const currentMeetings = activeTab === "upcoming" ? meetings.upcomingMeetings : meetings.pastMeetings
 
   if (loading) {
     return (
-      <Loader />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-gray-600">Loading your calendar...</p>
+        </div>
+      </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="px-4 py-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Calendar Dashboard</h1>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleManualRefresh}
-                disabled={refreshing || loading}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="text-black">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-              </Button>
-              <Button 
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
-              >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              Logout
-            </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Navbar */}
+      <DashboardNavbar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onRefresh={handleManualRefresh}
+        refreshing={refreshing}
+        lastUpdated={lastUpdated}
+      />
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab("upcoming")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "upcoming"
-                  ? "border-indigo-500 text-indigo-600 font-semibold"
-                  : "border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300"
-              }`}
-            >
-              Upcoming Meetings ({meetings.upcomingMeetings.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("past")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "past"
-                  ? "border-indigo-500 text-indigo-600 font-semibold"
-                  : "border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300"
-              }`}
-            >
-              Past Meetings ({meetings.pastMeetings.length})
-            </button>
-          </nav>
-        </div>
-      </div>
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {/* Error State */}
+        {error && (
+          <Card className="mb-6 border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-red-700">
+                <span className="text-sm font-medium">Error:</span>
+                <span className="text-sm">{error}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Error Display */}
-      {error && (
-        <div className="px-4 py-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-            <p>{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => fetchCalendarData(true, true)} 
-              className="mt-2"
-            >
-              Try Again
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Meetings List */}
-      <main className="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
-        <div className="space-y-6">
+        {/* Meetings Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentMeetings.map((meeting) => (
-            <Card key={meeting.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <CardTitle className="text-xl">{meeting.title}</CardTitle>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        {formatDate(meeting.startTime)}
-                      </div>
-                      <div className="flex items-center">
-                        <span>{meeting.duration} minutes</span>
-                      </div>
-                    </div>
-                  </div>
-                  {activeTab === "upcoming" && <Badge className="bg-indigo-100 text-indigo-800">Upcoming</Badge>}
-                  {activeTab === "past" && <Badge className="border border-gray-200 text-gray-700">Completed</Badge>}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-sm text-gray-900 mb-2">Attendees</h4>
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <div className="flex flex-wrap gap-2">
-                      {meeting.attendees.map((attendee, index) => (
-                        <Badge key={index} className="bg-gray-100 text-gray-800 text-xs">
-                          {attendee.email}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {meeting.description && (
-                  <div>
-                    <h4 className="font-medium text-sm text-gray-900 mb-2">Description</h4>
-                    <p 
-                      className="text-sm text-gray-600"
-                      dangerouslySetInnerHTML={{ 
-                        __html: meeting.description.replace(/<\/?[^>]+(>|$)/g, "") 
-                      }}
-                    />
-                  </div>
-                )}
-
-                {activeTab === "past" && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-
-                        {!summaries[meeting.id] && (
-                          <Button
-                            size="sm"
-                            onClick={() => generateAISummary(meeting.id, meeting.title)}
-                            disabled={loadingSummary === meeting.id}
-                            className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center"
-                          >
-                            <Brain className="h-4 w-4 mr-2" />
-                            {loadingSummary === meeting.id ? (
-                              <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
-                                Generating...
-                              </>
-                            ) : (
-                              "Generate Summary"
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                      {summaries[meeting.id] && (
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                          <p className="text-sm text-blue-900">{summaries[meeting.id]}</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            <MeetingCard
+              key={meeting.id}
+              meeting={meeting}
+              isPast={activeTab === "past"}
+              onAISummary={handleAISummary}
+            />
           ))}
-
-          {currentMeetings.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No {activeTab} meetings found.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleManualRefresh}
-                disabled={refreshing}
-                className="mt-4"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="text-black">Refresh Calendar</span>
-              </Button>
-            </div>
-          )}
         </div>
-        
-        {/* Last Updated Timestamp */}
-        {lastUpdated && (
-          <div className="mt-8 text-center text-sm text-gray-500">
-            Last updated: {new Date(lastUpdated).toLocaleString()}
-            {refreshing && (
-              <span className="ml-2 text-indigo-600">
-                • Refreshing...
-              </span>
-            )}
+
+        {/* Empty State */}
+        {currentMeetings.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <Clock className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No {activeTab} meetings found
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {activeTab === "upcoming" 
+                ? "You don't have any upcoming meetings scheduled."
+                : "You don't have any past meetings to display."
+              }
+            </p>
+            <Button
+              variant="outline"
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh Calendar
+            </Button>
           </div>
         )}
       </main>

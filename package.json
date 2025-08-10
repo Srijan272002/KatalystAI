@@ -10,11 +10,12 @@
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf .next node_modules/.cache",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "setup-supabase": "node setup-supabase.js"
   },
   "dependencies": {
-    "@auth/supabase-adapter": "^1.10.0",
     "@radix-ui/react-separator": "^1.1.7",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.54.0",
     "@types/styled-components": "^5.1.34",
     "class-variance-authority": "^0.7.1",
@@ -22,7 +23,6 @@
     "googleapis": "^155.0.1",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",
-    "next-auth": "^5.0.0-beta.29",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "styled-components": "^6.1.19",

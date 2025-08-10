@@ -1,4 +1,14 @@
-import { MockAISummary, Meeting } from "@/types/meeting"
+import { MeetingWithAttendees } from "@/lib/supabase/types"
+
+// Mock AI Summary interface
+export interface MockAISummary {
+  id: string;
+  meetingId: string;
+  summary: string;
+  keyPoints: string[];
+  actionItems: string[];
+  createdAt: string;
+}
 
 const mockSummaryTemplates = [
   {
@@ -78,9 +88,9 @@ const mockSummaryTemplates = [
   }
 ]
 
-export function generateMockAISummary(meeting: Meeting): MockAISummary | null {
+export function generateMockAISummary(meeting: MeetingWithAttendees): MockAISummary | null {
   // Only generate summaries for past meetings
-  const meetingEndTime = new Date(meeting.endTime)
+  const meetingEndTime = new Date(meeting.end_time)
   if (meetingEndTime > new Date()) {
     console.log(`Skipping AI summary for future meeting: ${meeting.title}`)
     return null
@@ -105,27 +115,26 @@ export function validateMeetingData(meeting: unknown): boolean {
       meeting &&
       typeof m.id === 'string' &&
       typeof m.title === 'string' &&
-      typeof m.startTime === 'string' &&
-      typeof m.endTime === 'string' &&
+      typeof m.start_time === 'string' &&
+      typeof m.end_time === 'string' &&
       Array.isArray(m.attendees) &&
-      m.organizer &&
-      typeof (m.organizer as Record<string, unknown>).email === 'string'
+      typeof m.organizer_email === 'string'
     )
   } catch {
     return false
   }
 }
 
-export function sanitizeMeetingData(meetings: Meeting[]): Meeting[] {
+export function sanitizeMeetingData(meetings: MeetingWithAttendees[]): MeetingWithAttendees[] {
   return meetings
     .filter(validateMeetingData)
     .map((meeting) => {
       const m = meeting as unknown as Record<string, unknown>
-      const sanitized: Meeting = {
-        ...(m as unknown as Meeting),
+      const sanitized: MeetingWithAttendees = {
+        ...(m as unknown as MeetingWithAttendees),
         title: (m.title as string)?.substring(0, 200) || 'Untitled Meeting',
-        description: (m.description as string)?.substring(0, 1000) || undefined,
-        location: (m.location as string)?.substring(0, 200) || undefined,
+        description: (m.description as string)?.substring(0, 1000) || null,
+        location: (m.location as string)?.substring(0, 200) || null,
       }
       return sanitized
     })

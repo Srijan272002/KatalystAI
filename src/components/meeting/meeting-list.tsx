@@ -1,9 +1,9 @@
-import { Meeting } from '@/types/meeting'
+import { MeetingWithAttendees } from '@/lib/supabase/types'
 import { MeetingCard } from './meeting-card'
 import { MeetingListSkeleton } from '@/components/ui/loading-skeleton'
 
 interface MeetingListProps {
-  meetings: Meeting[]
+  meetings: MeetingWithAttendees[]
   title: string
   isPast?: boolean
   onAISummary?: (meetingId: string) => void
