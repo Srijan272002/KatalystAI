@@ -79,6 +79,50 @@ class Logger {
   apiError(method: string, path: string, error: Error, userId?: string, duration?: number) {
     this.error(`API_ERROR: ${method} ${path}`, error, userId, duration)
   }
+
+  // Authentication-specific logging
+  authEvent(event: string, data?: Record<string, unknown>, userId?: string) {
+    const logEntry = this.formatLog('info', `AUTH_EVENT: ${event}`, {
+      ...data,
+      timestamp: Date.now(),
+      userAgent: typeof window !== 'undefined' ? window.navigator?.userAgent : undefined,
+    }, userId)
+    console.info(JSON.stringify(logEntry))
+  }
+
+  authError(event: string, error: Error | unknown, userId?: string, context?: Record<string, unknown>) {
+    const errorObj = error as Error
+    const logEntry = this.formatLog('error', `AUTH_ERROR: ${event}`, {
+      ...context,
+      errorMessage: errorObj.message,
+      errorName: errorObj.name,
+      errorStack: errorObj.stack,
+      timestamp: Date.now(),
+      userAgent: typeof window !== 'undefined' ? window.navigator?.userAgent : undefined,
+    }, userId)
+    console.error(JSON.stringify(logEntry))
+  }
+
+  // Token-specific logging
+  tokenEvent(event: string, userId: string, tokenData?: Record<string, unknown>) {
+    const logEntry = this.formatLog('info', `TOKEN_EVENT: ${event}`, {
+      ...tokenData,
+      timestamp: Date.now(),
+    }, userId)
+    console.info(JSON.stringify(logEntry))
+  }
+
+  tokenError(event: string, error: Error | unknown, userId?: string, tokenData?: Record<string, unknown>) {
+    const errorObj = error as Error
+    const logEntry = this.formatLog('error', `TOKEN_ERROR: ${event}`, {
+      ...tokenData,
+      errorMessage: errorObj.message,
+      errorName: errorObj.name,
+      errorStack: errorObj.stack,
+      timestamp: Date.now(),
+    }, userId)
+    console.error(JSON.stringify(logEntry))
+  }
 }
 
 export const logger = new Logger()

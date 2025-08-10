@@ -1,19 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/providers/session-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import "../styles/fonts.css";
 
 export const metadata: Metadata = {
   title: "Katalyst Calendar",
@@ -27,12 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* Satoshi from Fontshare in head as fallback if CSS import fails */}
-        <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap" rel="stylesheet" />
-      </head>
+      <head />
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background font-sans antialiased`}
+        suppressHydrationWarning
+        className="min-h-screen bg-background font-satoshi antialiased"
       >
         <ErrorBoundary>
           <AuthProvider>

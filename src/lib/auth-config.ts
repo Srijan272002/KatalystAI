@@ -1,39 +1,107 @@
-import type { NextAuthConfig } from "next-auth"
+import type { NextAuthConfig, Session } from "next-auth"
+import type { AdapterSession } from "@auth/core/adapters"
+import type { JWT } from "next-auth/jwt"
 import GoogleProvider from "next-auth/providers/google"
 import { config } from "./config"
+import { logger } from "./utils/logger"
 
 async function refreshGoogleAccessToken(token: any) {
   try {
-    if (!token?.refreshToken) return token
+    // Validate token structure
+    if (!token) {
+      logger.tokenError("refresh", new Error("No token provided"));
+      return { error: "InvalidTokenError" };
+    }
+
+    if (!token.refreshToken) {
+      logger.tokenError("refresh", new Error("No refresh token available"), token.userId as string);
+      return { ...token, error: "NoRefreshTokenError" };
+    }
+
+    // Prepare request parameters
     const params = new URLSearchParams({
       client_id: config.google.clientId,
       client_secret: config.google.clientSecret,
       grant_type: "refresh_token",
       refresh_token: token.refreshToken as string,
-    })
+    });
 
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    })
+    // Attempt token refresh with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const refreshed = await res.json()
-    if (!res.ok) {
-      throw new Error(refreshed.error || "Failed to refresh token")
+    try {
+      const res = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json"
+        },
+        body: params.toString(),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const refreshed = await res.json();
+
+      // Handle HTTP errors
+      if (!res.ok) {
+        logger.tokenError("refresh", new Error(refreshed.error || "RefreshTokenError"), token.userId as string, {
+          statusCode: res.status,
+          errorDescription: refreshed.error_description
+        });
+        return { 
+          ...token, 
+          error: refreshed.error || "RefreshTokenError",
+          errorDescription: refreshed.error_description
+        };
+      }
+
+      // Validate response data
+      if (!refreshed.access_token) {
+        logger.tokenError("refresh", new Error("Invalid response: missing access_token"), token.userId as string, {
+          responseData: refreshed
+        });
+        return { ...token, error: "InvalidResponseError" };
+      }
+
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      
+      // Return refreshed token
+      return {
+        ...token,
+        accessToken: refreshed.access_token,
+        expiresAt: refreshed.expires_in ? nowInSeconds + Number(refreshed.expires_in) : token.expiresAt,
+        refreshToken: token.refreshToken, // Preserve existing refresh token
+        error: undefined, // Clear any previous errors
+        errorDescription: undefined
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const fetchError = err as Error;
+      if (fetchError.name === "AbortError") {
+        console.error("Token refresh timeout");
+        return { ...token, error: "RefreshTimeoutError" };
+      }
+      throw fetchError; // Re-throw other fetch errors
     }
+  } catch (err) {
+    // Log the error with context
+    const error = err as Error;
+    console.error("Token refresh error:", {
+      error: error.message,
+      tokenId: token?.id,
+      errorType: error.name,
+      stack: error.stack
+    });
 
-    const nowInSeconds = Math.floor(Date.now() / 1000)
-    return {
-      ...token,
-      accessToken: refreshed.access_token ?? token.accessToken,
-      expiresAt: refreshed.expires_in ? nowInSeconds + Number(refreshed.expires_in) : token.expiresAt,
-      // Google's refresh may not return a new refresh_token; keep the old one
-      refreshToken: token.refreshToken,
-    }
-  } catch (e) {
-    console.error("Error refreshing Google access token:", e)
-    return { ...token, error: "RefreshAccessTokenError" }
+    // Return token with error info
+    return { 
+      ...token, 
+      error: "RefreshAccessTokenError",
+      errorDescription: error.message
+    };
   }
 }
 
@@ -109,51 +177,118 @@ export const authConfig: NextAuthConfig = {
     async signIn({ user, account, profile }) {
       // Enhanced security checks with better error handling
       try {
-        // Always allow sign in if we have valid user data
+        // Validate user data
         if (!user?.email) {
-          console.error('Sign in failed: No user email provided')
-          return false
+          logger.authError('signin', new Error('SIGNIN_EMAIL_REQUIRED'), undefined, {
+            provider: account?.provider
+          });
+          throw new Error('SIGNIN_EMAIL_REQUIRED')
+        }
+
+        if (!user?.name) {
+          logger.authEvent('signin_warning', {
+            message: 'No user name provided',
+            email: user.email,
+            provider: account?.provider
+          });
         }
 
         if (account?.provider === "google") {
-          // For Google, we prefer verified emails but don't strictly require it in development
-          const emailVerified = profile?.email_verified ?? true // Default to true if not provided
+          // Validate Google-specific requirements
+          const emailVerified = profile?.email_verified ?? false // Default to false for security
           
-          if (!emailVerified && config.app.isProduction) {
-            console.error('Sign in failed: Email not verified in production', { email: user.email })
-            return false
+          if (!emailVerified) {
+            if (config.app.isProduction) {
+              logger.authError('signin', new Error('SIGNIN_EMAIL_NOT_VERIFIED'), user.email, {
+                provider: account.provider,
+                email: user.email
+              });
+              throw new Error('SIGNIN_EMAIL_NOT_VERIFIED')
+            } else {
+              logger.authEvent('signin_warning', {
+                message: 'Unverified email allowed in development',
+                email: user.email,
+                provider: account.provider
+              });
+            }
+          }
+
+          // Validate required Google scopes
+          const requiredScopes = ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar.readonly']
+          const missingScopes = requiredScopes.filter(scope => !account.scope?.includes(scope))
+          
+          if (missingScopes.length > 0) {
+            logger.authError('signin', new Error('SIGNIN_MISSING_SCOPES'), user.email, {
+              provider: account.provider,
+              missingScopes
+            });
+            throw new Error('SIGNIN_MISSING_SCOPES')
           }
           
-          console.log('Google sign in successful', { 
-            email: user.email, 
-            verified: emailVerified 
-          })
+          // Log successful sign in
+          logger.authEvent('signin_success', {
+            provider: account.provider,
+            email: user.email,
+            name: user.name,
+            verified: emailVerified,
+            scopes: account.scope
+          }, user.email);
+          
           return true
         }
         
-        // Allow other providers
-        return true
-      } catch (error) {
-        console.error('Sign in callback error:', error)
-        // In development, be more permissive
-        if (config.app.isDevelopment) {
-          console.warn('Allowing sign in despite error in development mode')
+        // For non-Google providers (if added in future)
+        logger.authEvent('signin_warning', {
+          message: 'Non-Google provider used',
+          provider: account?.provider,
+          email: user.email
+        });
+        return false
+
+      } catch (err) {
+        // Enhanced error logging
+        const error = err as Error;
+        logger.authError('signin', error, user?.email || undefined, {
+          provider: account?.provider,
+          isDevelopment: config.app.isDevelopment
+        });
+
+        // In development, allow sign in for testing
+        if (config.app.isDevelopment && error.message !== 'SIGNIN_EMAIL_REQUIRED') {
+          logger.authEvent('signin_warning', {
+            message: 'Allowing sign in despite error in development mode',
+            error: error.message,
+            email: user?.email,
+            provider: account?.provider
+          });
           return true
         }
+
         return false
       }
     },
   },
   events: {
     async signIn({ user, account }) {
-      console.log(`User signed in: ${user.email} via ${account?.provider}`)
+      logger.authEvent('signin_event', {
+        provider: account?.provider,
+        email: user.email
+      }, user.email || undefined);
     },
-    async signOut() {
-      console.log(`User signed out`)
+    async signOut(message: { session: void | AdapterSession | null | undefined } | { token: JWT | null }) {
+      let email: string | undefined;
+      
+      if ('session' in message && message.session) {
+        // Handle both Session and AdapterSession types
+        email = (message.session as any)?.user?.email;
+      }
+
+      logger.authEvent('signout_event', {
+        email
+      }, email || undefined);
     },
   },
   pages: {
-    signIn: "/auth/signin",
     error: "/auth/error",
   },
   debug: config.app.isDevelopment,
