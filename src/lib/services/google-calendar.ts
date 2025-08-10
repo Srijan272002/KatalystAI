@@ -74,7 +74,18 @@ export class GoogleCalendarService {
       const meetings = events
         .filter(event => {
           const startTime = event.start?.dateTime || event.start?.date
-          return startTime && new Date(startTime) > now
+          const isUpcoming = startTime && new Date(startTime) > now
+          
+          // Ensure event belongs to current user
+          const isUserEvent = 
+            event.organizer?.email === this.userEmail ||
+            event.creator?.email === this.userEmail ||
+            (event.attendees || []).some(attendee => 
+              attendee.email === this.userEmail && 
+              attendee.responseStatus !== 'declined'
+            )
+          
+          return isUpcoming && isUserEvent
         })
         .map(this.transformEventToMeeting)
         .slice(0, maxResults)
@@ -121,7 +132,18 @@ export class GoogleCalendarService {
       const meetings = events
         .filter(event => {
           const endTime = event.end?.dateTime || event.end?.date
-          return endTime && new Date(endTime) <= now
+          const isPast = endTime && new Date(endTime) <= now
+
+          // Ensure event belongs to current user
+          const isUserEvent = 
+            event.organizer?.email === this.userEmail ||
+            event.creator?.email === this.userEmail ||
+            (event.attendees || []).some(attendee => 
+              attendee.email === this.userEmail && 
+              attendee.responseStatus !== 'declined'
+            )
+          
+          return isPast && isUserEvent
         })
         .map(this.transformEventToMeeting)
         .reverse() // Most recent first

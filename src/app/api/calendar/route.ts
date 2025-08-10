@@ -49,9 +49,10 @@ export async function GET(request: Request) {
     const headers = {
       'Cache-Control': forceRefresh 
         ? 'no-cache, no-store, must-revalidate'
-        : 'private, max-age=60', // 1 minute cache, private to prevent sharing between users
-      'Vary': 'Authorization', // Vary on auth header to prevent cache mixing between users
-      'X-User-Email': userId // Include user email for debugging
+        : 'private, max-age=30', // 30 seconds cache, private to prevent sharing between users
+      'Vary': 'Authorization, X-User-Email', // Vary on both auth and user email
+      'X-User-Email': userId, // Include user email for debugging
+      'ETag': `"${userId}-${Date.now()}"` // User-specific ETag
     }
     
     return NextResponse.json(validatedData, { headers })

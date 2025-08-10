@@ -25,21 +25,34 @@ export function DashboardContent({ user }: DashboardContentProps) {
 
   const fetchCalendarData = async (showLoading = true, forceRefresh = false, retryCount = 0) => {
     const maxRetries = 3
+    const currentUserEmail = user.email
     
     try {
+      // Don't fetch if user has changed
+      if (currentUserEmail !== user.email) {
+        console.log('🚫 Skipping fetch - user has changed')
+        return
+      }
+
       if (showLoading) setLoading(true)
       if (!showLoading) setRefreshing(true)
       setError(null)
 
       // Add cache-busting parameter for force refresh
       const refreshParam = forceRefresh ? '?refresh=true' : ''
-      console.log(`📡 Fetching calendar data (attempt ${retryCount + 1}/${maxRetries + 1})...`)
+      console.log(`📡 Fetching calendar data for ${currentUserEmail} (attempt ${retryCount + 1}/${maxRetries + 1})...`)
       
-      const response = await fetch(`/api/calendar${refreshParam}`, {
-        headers: {
-          'Cache-Control': forceRefresh ? 'no-cache' : 'default',
-        },
-      })
+      // Ensure we have a valid email before making the request
+      if (!currentUserEmail) {
+        throw new Error("User email is required")
+      }
+
+      const headers: HeadersInit = {
+        'Cache-Control': forceRefresh ? 'no-cache' : 'default',
+        'X-User-Email': currentUserEmail, // Add user email header for validation
+      }
+
+      const response = await fetch(`/api/calendar${refreshParam}`, { headers })
       
       const data = await response.json()
 
@@ -180,28 +193,37 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
   }
 
   useEffect(() => {
+    const currentUserEmail = user.email
+
     // Clear state when user changes
     setCalendarData(null)
     setConnectedToCalendar(false)
     setError(null)
     setRetryAttempt(0)
+    setLoading(true)
+    setRefreshing(false)
 
-    // Force refresh on new user session
-    const timer = setTimeout(() => {
-      console.log('🚀 Starting initial calendar data fetch for user:', user.email)
-      fetchCalendarData(true, true) // Force refresh on new session
-    }, 1000)
-    
-    // Near real-time polling: every 60 seconds
+    // Immediately fetch data for new user
+    console.log('🚀 Starting initial calendar data fetch for user:', currentUserEmail)
+    fetchCalendarData(true, true) // Force refresh on new session
+
+    // Near real-time polling: every 30 seconds
     const interval = setInterval(() => {
-      if (!loading && !refreshing) {
+      // Only poll if this is still the current user
+      if (user.email === currentUserEmail && !loading && !refreshing) {
+        console.log('🔄 Auto-refresh for user:', currentUserEmail)
         fetchCalendarData(false, true) // Always force refresh to prevent stale data
       }
-    }, 60 * 1000)
+    }, 30 * 1000)
 
     return () => {
-      clearTimeout(timer)
       clearInterval(interval)
+      // Clear state when unmounting or changing users
+      if (user.email !== currentUserEmail) {
+        setCalendarData(null)
+        setConnectedToCalendar(false)
+        setError(null)
+      }
     }
   }, [user.email]) // Dependency on user email to detect changes
 
