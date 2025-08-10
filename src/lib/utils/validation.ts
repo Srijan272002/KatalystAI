@@ -14,6 +14,7 @@ export const envSchema = z.object({
   NEXTAUTH_URL: z.string().url().optional(),
   NEXTAUTH_SECRET: z.string().min(1),
   NODE_ENV: z.enum(["development", "production", "test"]).optional(),
+  NEXTAUTH_DEBUG: z.string().optional(),
 })
 
 // API request validation schemas

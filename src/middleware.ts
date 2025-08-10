@@ -7,12 +7,10 @@ export default auth((req) => {
   // Public routes that don't require authentication
   const publicRoutes = ["/", "/auth/error"]
   const apiRoutes = ["/api/auth"]
-  const authRoutes = ["/auth/signin"] // Deprecated but kept for backward compatibility
   
   // Check if the current path is a public route or API route
   const isPublicRoute = publicRoutes.includes(pathname)
   const isApiRoute = apiRoutes.some(route => pathname.startsWith(route))
-  const isAuthRoute = authRoutes.includes(pathname)
   
   // Check if user is authenticated
   const isAuthenticated = !!req.auth
@@ -24,14 +22,6 @@ export default auth((req) => {
   if (isApiRoute) {
     response = NextResponse.next()
   }
-  // Redirect old signin page to home
-  else if (isAuthRoute) {
-    const homeUrl = new URL("/", req.url)
-    if (req.nextUrl.searchParams.has("callbackUrl")) {
-      homeUrl.searchParams.set("callbackUrl", req.nextUrl.searchParams.get("callbackUrl")!)
-    }
-    response = NextResponse.redirect(homeUrl)
-  }
   // If trying to access protected route without authentication
   else if (!isPublicRoute && !isAuthenticated) {
     const homeUrl = new URL("/", req.url)
@@ -41,6 +31,10 @@ export default auth((req) => {
   // If authenticated user tries to access public pages, redirect to dashboard
   else if (isAuthenticated && pathname === "/") {
     response = NextResponse.redirect(new URL("/dashboard", req.url))
+  }
+  // Handle any attempts to access old auth routes
+  else if (pathname.startsWith("/auth/signin")) {
+    response = NextResponse.redirect(new URL("/", req.url))
   }
   else {
     response = NextResponse.next()

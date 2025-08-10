@@ -290,6 +290,7 @@ export const authConfig: NextAuthConfig = {
   },
   pages: {
     error: "/auth/error",
+    signIn: "/", // Redirect all sign-in attempts to home page
   },
-  debug: config.app.isDevelopment,
+  debug: config.app.isDevelopment && process.env.NEXTAUTH_DEBUG?.toLowerCase() === 'true',
 }

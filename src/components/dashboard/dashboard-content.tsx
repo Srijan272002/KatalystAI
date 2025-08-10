@@ -136,8 +136,21 @@ export function DashboardContent({ user }: DashboardContentProps) {
   }
 
   const handleAISummary = (meetingId: string) => {
+    // Find the meeting in past meetings
+    const meeting = calendarData?.pastMeetings.find(m => m.id === meetingId)
+    if (!meeting) {
+      console.error('Meeting not found:', meetingId)
+      addToast('Could not generate summary: Meeting not found', 'error')
+      return
+    }
+
     // Generate mock AI summary using the utility function
-    const mockSummary = generateMockAISummary(meetingId)
+    const mockSummary = generateMockAISummary(meeting)
+    if (!mockSummary) {
+      console.error('Could not generate summary for meeting:', meetingId)
+      addToast('Could not generate summary at this time', 'error')
+      return
+    }
 
     // For now, show an enhanced alert - in real implementation, this would be a modal
     const summaryText = `
@@ -161,21 +174,28 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
     console.log('AI Summary generated for meeting:', {
       meetingId,
       summaryId: mockSummary.id,
-      timestamp: mockSummary.createdAt
+      timestamp: mockSummary.createdAt,
+      meetingTitle: meeting.title
     })
   }
 
   useEffect(() => {
-    // Add a small delay for initial load to ensure session is fully established
+    // Clear state when user changes
+    setCalendarData(null)
+    setConnectedToCalendar(false)
+    setError(null)
+    setRetryAttempt(0)
+
+    // Force refresh on new user session
     const timer = setTimeout(() => {
-      console.log('🚀 Starting initial calendar data fetch...')
-      fetchCalendarData()
-    }, 1000) // 1 second delay
+      console.log('🚀 Starting initial calendar data fetch for user:', user.email)
+      fetchCalendarData(true, true) // Force refresh on new session
+    }, 1000)
     
     // Near real-time polling: every 60 seconds
     const interval = setInterval(() => {
       if (!loading && !refreshing) {
-        fetchCalendarData(false, false)
+        fetchCalendarData(false, true) // Always force refresh to prevent stale data
       }
     }, 60 * 1000)
 
@@ -183,7 +203,7 @@ ${mockSummary.actionItems.map(item => `• ${item}`).join('\n')}
       clearTimeout(timer)
       clearInterval(interval)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user.email]) // Dependency on user email to detect changes
 
   // Manual refresh handler
   const handleManualRefresh = () => {

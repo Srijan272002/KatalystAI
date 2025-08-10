@@ -78,14 +78,21 @@ const mockSummaryTemplates = [
   }
 ]
 
-export function generateMockAISummary(meetingId: string): MockAISummary {
+export function generateMockAISummary(meeting: Meeting): MockAISummary | null {
+  // Only generate summaries for past meetings
+  const meetingEndTime = new Date(meeting.endTime)
+  if (meetingEndTime > new Date()) {
+    console.log(`Skipping AI summary for future meeting: ${meeting.title}`)
+    return null
+  }
+
   // Use meetingId to ensure consistent summary for same meeting
-  const templateIndex = Math.abs(meetingId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % mockSummaryTemplates.length
+  const templateIndex = Math.abs(meeting.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % mockSummaryTemplates.length
   const template = mockSummaryTemplates[templateIndex]
   
   return {
-    id: `summary-${meetingId}-${Date.now()}`,
-    meetingId,
+    id: `summary-${meeting.id}-${Date.now()}`,
+    meetingId: meeting.id,
     ...template,
     createdAt: new Date().toISOString(),
   }

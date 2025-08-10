@@ -20,6 +20,7 @@ try {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
     NODE_ENV: process.env.NODE_ENV as 'development' | 'production' | 'test' | undefined,
+    NEXTAUTH_DEBUG: process.env.NEXTAUTH_DEBUG,
   }
 }
 

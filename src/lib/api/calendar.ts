@@ -1,7 +1,5 @@
 import { Meeting, CalendarData } from "../../types/meeting"
 import { logger } from "../utils/logger"
-import { sanitizeMeetingData } from "../utils/mock-data"
-// Removed public calendar fallback to enforce user-specific data only
 import { createGoogleCalendarService } from "../services/google-calendar"
 
 export async function getCalendarData(
@@ -35,19 +33,26 @@ export async function getCalendarData(
       
       console.log(`✅ Google Calendar API succeeded - got ${upcoming.length} upcoming, ${past.length} past events`)
 
-      // Sanitize the data to ensure data integrity
-      const sanitizedUpcoming: Meeting[] = sanitizeMeetingData(upcoming)
-      const sanitizedPast: Meeting[] = sanitizeMeetingData(past)
+      // Ensure meetings are properly sorted and limited
+      const upcomingMeetings: Meeting[] = upcoming
+        .filter((meeting: Meeting) => {
+          const startTime = new Date(meeting.startTime)
+          return startTime > new Date() // Only truly upcoming meetings
+        })
+        .sort((a: Meeting, b: Meeting) => 
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        )
+        .slice(0, 5) // Strictly limit to 5 meetings
 
-      const upcomingMeetings: Meeting[] = sanitizedUpcoming
-        .filter((meeting: Meeting) => new Date(meeting.startTime) > new Date()) // Ensure truly upcoming
-        .sort((a: Meeting, b: Meeting) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        .slice(0, 5)
-
-      const pastMeetings: Meeting[] = sanitizedPast
-        .filter((meeting: Meeting) => new Date(meeting.endTime) < new Date()) // Ensure truly past
-        .sort((a: Meeting, b: Meeting) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()) // Most recent first
-        .slice(0, 5)
+      const pastMeetings: Meeting[] = past
+        .filter((meeting: Meeting) => {
+          const endTime = new Date(meeting.endTime)
+          return endTime < new Date() // Only truly past meetings
+        })
+        .sort((a: Meeting, b: Meeting) => 
+          new Date(b.startTime).getTime() - new Date(a.startTime).getTime() // Most recent first
+        )
+        .slice(0, 5) // Strictly limit to 5 meetings
 
       const duration = Date.now() - startTime
       logger.info("Calendar data fetched successfully via Google Calendar API", { 

@@ -45,10 +45,14 @@ export async function GET(request: Request) {
     const duration = Date.now() - startTime
     logger.apiRequest("GET", "/api/calendar", userId, duration)
     
-    // Add cache headers based on refresh parameter
-    const headers = forceRefresh 
-      ? { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-      : { 'Cache-Control': 'public, max-age=300' } // 5 minutes cache
+    // Always use private cache and include user ID in Vary header
+    const headers = {
+      'Cache-Control': forceRefresh 
+        ? 'no-cache, no-store, must-revalidate'
+        : 'private, max-age=60', // 1 minute cache, private to prevent sharing between users
+      'Vary': 'Authorization', // Vary on auth header to prevent cache mixing between users
+      'X-User-Email': userId // Include user email for debugging
+    }
     
     return NextResponse.json(validatedData, { headers })
   } catch (error) {

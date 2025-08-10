@@ -18,21 +18,22 @@ export function ConnectGoogleButton({ size = "lg", className, label = "Connect w
     try {
       setLoading(true)
       setError(null)
-      const result = await signIn("google", { 
+      
+      // Direct authentication with Google
+      await signIn("google", { 
         callbackUrl: "/dashboard",
-        redirect: false // Handle redirect manually to catch errors
+        redirect: true, // We want immediate redirect to Google
+        prompt: "select_account consent", // Always show account selection
+        scope: "openid email profile https://www.googleapis.com/auth/calendar.readonly"
       })
-
-      if (result?.error) {
-        console.error("Authentication error:", result.error)
-        setError("Failed to connect. Please try again.")
-      } else if (result?.url) {
-        // Successful auth, redirect
-        window.location.href = result.url
-      }
+      
+      // This code won't run because we're redirecting
+      // Error handling will be done by the error page
+      
     } catch (err) {
-      console.error("Unexpected error during authentication:", err)
-      setError("An unexpected error occurred. Please try again.")
+      // This will only catch client-side errors before redirect
+      console.error("Failed to initiate authentication:", err)
+      setError("Unable to start authentication. Please try again.")
     } finally {
       setLoading(false)
     }
