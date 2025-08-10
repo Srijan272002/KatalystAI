@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 
-export default function AuthError() {
+function AuthErrorContent() {
   const searchParams = useSearchParams()
   const { addToast } = useToast()
   const error = searchParams.get("error")
@@ -76,5 +76,28 @@ export default function AuthError() {
         </div>
       </div>
     </div>
+  )
+}
+
+function AuthErrorLoading() {
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full space-y-8 text-center">
+        <div>
+          <h2 className="text-2xl font-bold">Loading...</h2>
+          <p className="mt-2 text-muted-foreground">
+            Please wait while we process your request.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthError() {
+  return (
+    <Suspense fallback={<AuthErrorLoading />}>
+      <AuthErrorContent />
+    </Suspense>
   )
 }
