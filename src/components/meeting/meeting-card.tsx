@@ -133,10 +133,16 @@ export function MeetingCard({ meeting, isPast = false, onAISummary }: MeetingCar
 
           {/* Description */}
           {meeting.description && (
-            <div>
-              <p 
-                className="text-sm text-gray-700 leading-relaxed line-clamp-3"
-                dangerouslySetInnerHTML={{ __html: meeting.description }}
+            <div className="mt-3">
+              <div 
+                className="text-sm text-gray-700 leading-relaxed line-clamp-3 prose prose-sm max-w-none prose-p:my-0 prose-p:text-sm prose-p:text-gray-700 prose-strong:text-gray-900 prose-strong:font-semibold"
+                dangerouslySetInnerHTML={{ 
+                  __html: meeting.description
+                    .replace(/<b>/g, '<strong>')
+                    .replace(/<\/b>/g, '</strong>')
+                    .replace(/<i>/g, '<em>')
+                    .replace(/<\/i>/g, '</em>')
+                }}
               />
             </div>
           )}
