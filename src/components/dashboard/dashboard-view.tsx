@@ -285,6 +285,7 @@ export function DashboardView({ searchParams }: DashboardViewProps) {
               variant="outline"
               onClick={handleManualRefresh}
               disabled={refreshing}
+              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-400 bg-white font-medium shadow-sm"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh Calendar

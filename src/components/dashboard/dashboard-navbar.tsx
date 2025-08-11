@@ -66,7 +66,7 @@ export function DashboardNavbar({
             size="sm"
             onClick={onRefresh}
             disabled={refreshing}
-            className="flex items-center space-x-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+            className="flex items-center space-x-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-400 bg-white font-medium shadow-sm"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
