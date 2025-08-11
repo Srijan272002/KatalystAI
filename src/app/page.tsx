@@ -6,6 +6,7 @@ import { Calendar, Brain, Zap } from "lucide-react"
 import { useSimpleAuth, signInWithGoogleSimple, handleOAuthCallback } from "@/lib/auth/simple-auth"
 import { useRouter, useSearchParams } from "next/navigation"
 import Loader from "@/components/ui/loader"
+import StyledLoginButton from "@/components/ui/styled-login-button"
 
 // Separate component for OAuth callback handling
 function OAuthCallbackHandler() {
@@ -118,13 +119,11 @@ export default function Home() {
             contextual information about your meetings.
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6">
-            <Button 
-              className="bg-indigo-600 hover:bg-indigo-700 text-white" 
+            <StyledLoginButton 
               onClick={handleSignIn}
               disabled={isSigningIn}
-            >
-              {isSigningIn ? 'Signing in...' : 'Login with Google Calendar'}
-            </Button>
+              isLoading={isSigningIn}
+            />
           </div>
         </div>
       </section>
@@ -224,17 +223,15 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Ready to Transform Your Calendar?
             </h2>
-            <p className="mt-4 text-lg text-indigo-200 max-w-2xl">
+            <p className="mt-4 text-lg text-indigo-600 max-w-2xl">
               Connect your Google Calendar and start getting AI-powered insights today.
             </p>
             <div className="mt-8 flex justify-center w-full">
-              <Button 
-                className="bg-white text-indigo-600 hover:bg-gray-100 flex items-center gap-2 px-8 py-3 rounded-full font-medium" 
+              <StyledLoginButton 
                 onClick={handleSignIn}
                 disabled={isSigningIn}
-              >
-                {isSigningIn ? 'Signing in...' : 'Login with Google Calendar'}
-              </Button>
+                isLoading={isSigningIn}
+              />
             </div>
           </div>
         </div>

@@ -134,9 +134,10 @@ export function MeetingCard({ meeting, isPast = false, onAISummary }: MeetingCar
           {/* Description */}
           {meeting.description && (
             <div>
-              <p className="text-sm text-gray-700 leading-relaxed line-clamp-3">
-                {meeting.description}
-              </p>
+              <p 
+                className="text-sm text-gray-700 leading-relaxed line-clamp-3"
+                dangerouslySetInnerHTML={{ __html: meeting.description }}
+              />
             </div>
           )}
         </div>
