@@ -1,198 +1,323 @@
-Got it — here’s the final README with an extra section that includes an example `.env` for the MCP server so people can run everything without having to check the MCP repo.
+# Google Calendar MCP Web App
 
----
+A modern web application that integrates Google Calendar using the Model Context Protocol (MCP), providing a seamless interface to view and manage meetings with AI-powered summaries.
 
-# Katalyst Calendar
+## 🚀 Features
 
-A modern, real-time calendar integration built with Next.js 14 and the [open-source Google Calendar MCP](https://github.com/MCP-Mirror/GongRzhe_Calendar-MCP-Server). View your upcoming and past meetings with a beautiful, responsive interface.
+- **Google Calendar Integration**: Fetch upcoming and past meetings using MCP
+- **AI-Powered Summaries**: Generate intelligent meeting summaries using Google Gemini
+- **Modern UI**: Beautiful, responsive interface built with React, TypeScript, and Tailwind CSS
+- **Real-time Authentication**: Google OAuth integration with Supabase Auth
+- **Smart Caching**: Efficient data caching with Supabase PostgreSQL
+- **Meeting Analytics**: Visual insights into meeting patterns and attendance
+- **Search & Filter**: Advanced search and filtering capabilities
+- **Export Functionality**: Export meeting data for external use
 
-## Features
+## 🏗️ Architecture
 
-* 🔄 Real-time calendar synchronization
-* 📅 View upcoming and past meetings
-* 👥 Meeting attendee management
-* 🔗 Direct meeting link access
-* 🎨 Modern, responsive UI with Tailwind CSS
-* 🔒 Secure authentication with NextAuth.js
-* ⚡ Server-side rendering for optimal performance
+### Tech Stack
 
-## Tech Stack
+- **Frontend**: React 19 + TypeScript + Tailwind CSS
+- **Backend**: Node.js + Express + TypeScript
+- **Database**: Supabase (PostgreSQL)
+- **Calendar Integration**: GongRzhe Calendar MCP Server
+- **AI Integration**: Google Gemini API
+- **Authentication**: Supabase Auth with Google OAuth
+- **Deployment**: Vercel-ready
 
-* **Framework**: Next.js 14 (App Router)
-* **Authentication**: NextAuth.js
-* **Calendar Integration**: Open-source Google Calendar MCP
-* **Styling**: Tailwind CSS + Shadcn/ui
-* **Database**: Supabase
-* **State Management**: React Hooks
-* **Type Safety**: TypeScript
-* **Deployment**: Vercel
+### MCP (Model Context Protocol) Integration
 
-## Prerequisites
+This application leverages MCP to provide seamless access to Google Calendar data:
 
-* Node.js 18.x or later
-* npm or yarn
-* A running instance of the open-source Google Calendar MCP server
-* Supabase account (for user data)
-* Google Cloud project with Calendar API enabled and OAuth credentials created
+#### MCP Server: GongRzhe Calendar MCP
+- **Package**: `@gongrzhe/server-calendar-mcp`
+- **Purpose**: Provides standardized access to Google Calendar API
+- **Benefits**: 
+  - Unified interface for calendar operations
+  - Automatic token management and refresh
+  - Type-safe calendar data access
+  - Simplified integration with AI models
 
-## Environment Variables (Next.js App)
+#### MCP Client Implementation
+The backend uses the MCP SDK to communicate with the calendar server:
 
-Create a `.env.local` file in the root directory of **this project** with the following variables:
-
-```bash
-# Authentication
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-nextauth-secret
-
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```typescript
+// MCP Client for Calendar Operations
+export class McpCalendarClient {
+  async listEvents(args: McpCalendarListArgs): Promise<JsonObject[]>
+  async getEvent(eventId: string): Promise<JsonObject | null>
+  async createEvent(eventData: JsonObject): Promise<JsonObject>
+  async updateEvent(eventId: string, eventData: JsonObject): Promise<JsonObject>
+  async deleteEvent(eventId: string): Promise<void>
+}
 ```
 
-## MCP Server Environment Variables
+#### Key MCP Features Used
+- **Calendar List**: Fetch upcoming and past meetings
+- **Event Management**: Create, read, update, delete events
+- **Attendee Management**: Handle meeting participants
+- **Time Zone Support**: Proper timezone handling
+- **OAuth Integration**: Seamless Google authentication
 
-Create a `.env.local` file inside the **Google Calendar MCP server** directory with:
+## 📁 Project Structure
+
+```
+mcp/
+├── backend/                 # Express.js API server
+│   ├── src/
+│   │   ├── services/
+│   │   │   ├── mcpClient.ts        # MCP Calendar client
+│   │   │   ├── geminiService.ts    # AI summary generation
+│   │   │   ├── supabaseService.ts  # Database operations
+│   │   │   └── userCalendarService.ts
+│   │   ├── routes/
+│   │   │   ├── meetings.ts         # Meeting API endpoints
+│   │   │   └── auth.ts            # Authentication routes
+│   │   └── middleware/
+│   │       └── auth.ts            # JWT authentication
+│   └── package.json
+├── frontend/               # React application
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── MeetingCard.tsx     # Individual meeting display
+│   │   │   ├── MeetingSearch.tsx   # Search functionality
+│   │   │   ├── MeetingAnalytics.tsx # Analytics dashboard
+│   │   │   └── ProtectedRoute.tsx  # Route protection
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx       # Main dashboard
+│   │   │   ├── LandingPage.tsx     # Landing page
+│   │   │   └── MeetingDetail.tsx   # Meeting details
+│   │   ├── services/
+│   │   │   ├── api.ts             # API client
+│   │   │   └── supabase.ts        # Supabase client
+│   │   └── contexts/
+│   │       └── AuthContext.tsx    # Authentication state
+│   └── package.json
+├── database-schema.sql     # Supabase database schema
+└── README.md
+```
+
+## 🛠️ Setup Instructions
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Google Cloud Platform account
+- Supabase account
+- Google Gemini API key
+
+### 1. Clone and Install Dependencies
 
 ```bash
-GOOGLE_CLIENT_ID=your-google-oauth-client-id
-GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:3001/oauth2callback
+git clone <repository-url>
+cd mcp
+
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
+
+### 2. Google Cloud Platform Setup
+
+1. Create a new project in Google Cloud Console
+2. Enable Google Calendar API
+3. Create OAuth 2.0 credentials
+4. Download the credentials JSON file
+
+### 3. Environment Configuration
+
+#### Backend (.env)
+```env
+# Server Configuration
 PORT=3001
+NODE_ENV=development
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REFRESH_TOKEN=your_refresh_token
+
+# MCP Calendar Server
+MCP_CALENDAR_COMMAND=node
+MCP_CALENDAR_ARGS=./node_modules/@gongrzhe/server-calendar-mcp/build/index.js
+
+# Supabase
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Google Gemini AI
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
-**Steps to get Google OAuth credentials**:
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a project (or select an existing one).
-3. Enable the **Google Calendar API**.
-4. Create OAuth 2.0 credentials (Client ID & Client Secret).
-5. Set the redirect URI to `http://localhost:3001/oauth2callback`.
-
-## Setup Instructions
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/katalyst-calendar.git
-   cd katalyst-calendar
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Run the Google Calendar MCP server**
-
-   ```bash
-   git clone https://github.com/MCP-Mirror/GongRzhe_Calendar-MCP-Server.git
-   cd GongRzhe_Calendar-MCP-Server
-   npm install
-   npm start
-   ```
-
-   By default, it will run at `http://localhost:3001/mcp`.
-
-4. **Configure MCP in your app**
-   Create `mcp.json` in the root directory of your Next.js app:
-
-   ```json
-   {
-     "mcpServers": {
-       "browsermcp": {
-         "command": "npx",
-         "args": [
-           "@browsermcp/mcp@latest"
-         ]
-       },
-       "googlecalendar": {
-         "url": "http://localhost:3001/mcp"
-       }
-     }
-   }
-   ```
-
-5. **Run the development server**
-
-   ```bash
-   npm run dev
-   ```
-
-6. **Open in your browser**
-   Go to [http://localhost:3000](http://localhost:3000).
-
-## Project Structure
-
-```
-katalyst-calendar/
-├── src/
-│   ├── app/              # Next.js app router pages
-│   ├── components/       # React components
-│   ├── lib/              # Utility functions and services
-│   ├── types/            # TypeScript type definitions
-│   └── styles/           # Global styles
-├── public/               # Static assets
-└── ...config files
+#### Frontend (.env)
+```env
+REACT_APP_API_URL=http://localhost:3001
+REACT_APP_SUPABASE_URL=your_supabase_url
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-## Key Features Implementation
+### 4. Database Setup
 
-### Calendar Integration
+1. Create a new Supabase project
+2. Run the database schema in Supabase SQL editor:
 
-* Real-time calendar sync using the Google Calendar MCP
-* Automatic refresh on initial load
-* Manual refresh option
-* Meeting filtering and sorting
+```sql
+-- Execute database-schema.sql in Supabase SQL editor
+```
 
-### Authentication Flow
+### 5. Start Development Servers
 
-* Secure OAuth implementation with NextAuth.js
-* Session management
-* Protected routes
+```bash
+# Start backend server
+cd backend
+npm run dev
 
-### User Interface
+# Start frontend server (in new terminal)
+cd frontend
+npm start
+```
 
-* Responsive design for all screen sizes
-* Dark/light mode support
-* Loading states and error handling
-* Toast notifications for user feedback
+## 🔧 API Endpoints
 
-## Deployment
+### Authentication
+- `POST /api/auth/google` - Google OAuth login
+- `POST /api/auth/refresh` - Refresh access token
+- `GET /api/auth/me` - Get current user
 
-The application is optimized for deployment on Vercel:
+### Meetings
+- `GET /api/meetings/upcoming` - Fetch upcoming meetings
+- `GET /api/meetings/past` - Fetch past meetings
+- `GET /api/meetings/:id` - Get specific meeting details
+- `POST /api/meetings/sync` - Sync with Google Calendar
+- `POST /api/meetings/:id/summary` - Generate AI summary
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Configure environment variables in Vercel dashboard
-4. Deploy!
+## 🎯 Key Features Implementation
 
-## Development Guidelines
+### 1. MCP Calendar Integration
 
-* Follow TypeScript best practices
-* Use ESLint and Prettier for code formatting
-* Write meaningful commit messages
-* Test thoroughly before deploying
+The application uses the GongRzhe Calendar MCP Server to provide a standardized interface for Google Calendar operations:
 
-## Performance Considerations
+```typescript
+// Example: Fetching upcoming meetings via MCP
+const upcomingMeetings = await mcpClient.listEvents({
+  timeMin: new Date().toISOString(),
+  timeMax: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  maxResults: 5,
+  orderBy: 'startTime'
+});
+```
 
-* Server-side rendering for initial page load
-* Optimized calendar data fetching
-* Efficient state management
-* Lazy loading of components
+### 2. AI-Powered Meeting Summaries
 
-## Security
+Integration with Google Gemini API for intelligent meeting analysis:
 
-* Environment variables for sensitive data
-* Secure authentication flow
-* API route protection
-* Input validation and sanitization
+```typescript
+// Generate meeting summary using Gemini
+const summary = await geminiService.generateSummary({
+  title: meeting.title,
+  description: meeting.description,
+  attendees: meeting.attendees,
+  duration: meeting.duration_minutes
+});
+```
 
-## Contributing
+### 3. Real-time Authentication
+
+Supabase Auth with Google OAuth for seamless user authentication:
+
+```typescript
+// Google OAuth sign-in
+const { data, error } = await supabase.auth.signInWithOAuth({
+  provider: 'google',
+  options: {
+    redirectTo: `${window.location.origin}/dashboard`
+  }
+});
+```
+
+### 4. Smart Data Caching
+
+Efficient caching strategy using Supabase:
+
+- Cache meeting data for faster loading
+- Sync with Google Calendar every 15 minutes
+- Store AI-generated summaries
+- Real-time updates via Supabase subscriptions
+
+## 🚀 Deployment
+
+### Vercel Deployment
+
+1. **Backend Deployment**:
+   ```bash
+   cd backend
+   vercel --prod
+   ```
+
+2. **Frontend Deployment**:
+   ```bash
+   cd frontend
+   vercel --prod
+   ```
+
+3. **Environment Variables**: Configure all environment variables in Vercel dashboard
+
+### Production Considerations
+
+- Set up proper CORS configuration
+- Configure Google OAuth redirect URIs
+- Set up Supabase production database
+- Configure MCP server for production
+
+## 🔍 Usage Examples
+
+### Viewing Meetings
+1. Navigate to the dashboard
+2. Switch between "Upcoming" and "Past" tabs
+3. Click on any meeting for detailed view
+
+### Generating AI Summaries
+1. Open a past meeting
+2. Click "Generate Summary" button
+3. View AI-generated insights and action items
+
+### Searching Meetings
+1. Use the search bar in the dashboard
+2. Filter by date range
+3. Export results if needed
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a pull request
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📝 License
+
+This project is licensed under the MIT License.
+
+## 🙏 Acknowledgments
+
+- [GongRzhe Calendar MCP Server](https://github.com/gongrzhe/server-calendar-mcp) for MCP integration
+- [Supabase](https://supabase.com) for backend-as-a-service
+- [Google Gemini](https://ai.google.dev/) for AI capabilities
+- [Tailwind CSS](https://tailwindcss.com) for styling
+
+## 📞 Support
+
+For support and questions:
+- Create an issue in the repository
+- Check the troubleshooting guide
+- Review the MCP documentation
+
+---
+
+**Built with ❤️ using MCP (Model Context Protocol) for seamless AI integration**
 
